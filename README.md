@@ -59,5 +59,33 @@ Le système capture automatiquement les emails de réclamation, extrait les info
 ## 🗄️ Structure de base de données
 
 ### Table `clients`
-```sql
+                   
 id | email | nom | prenom | created_at
+
+### Table reclamations
+
+id | client_id | message | sujet | embedding | categorie | statut | created_at
+
+### Table base_connaissance
+
+id | code_template | description_probleme | categorie | embedding | template_reponse | utilisation_count
+
+🔧 Prérequis techniques
+API Keys nécessaires
+
+--> Google Gemini API - Pour l'IA générative et les embeddings
+
+--> PostgreSQL - Base de données avec extension vector
+
+--> SMTP - Pour l'envoi d'emails
+
+-->IMAP - Pour la lecture d'emails
+
+--> Telegram Bot - Pour les notifications
+
+-->Notion API - Pour la gestion des tickets
+
+###Modèles IA utilisés
+-->models/text-embedding-004 - Pour les embeddings vectoriels
+
+models/gemini-2.5-flash - Pour la classification et génération
