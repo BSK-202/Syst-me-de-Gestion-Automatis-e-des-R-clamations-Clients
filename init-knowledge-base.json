@@ -1,0 +1,383 @@
+{
+  "name": "Initialisation Base Connaissance",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        352
+      ],
+      "id": "d2f6b40a-ae01-4938-8ebc-4d291d23d9e9",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nœud JavaScript - Formater embedding pour PostgreSQL\n\nconst input = $input.first().json;\n\n// 1. Récupérer l'embedding\nconst embeddingValues = input.embedding?.values || [];\n\n// 2. Vérifier que c'est un array\nif (!Array.isArray(embeddingValues)) {\n  throw new Error(\"L'embedding n'est pas un array !\");\n}\n\n// 3. Convertir en format PostgreSQL ARRAY string\n// Format: {0.011800998,0.004005518,0.04419434,...}\nconst pgArrayString = `[${embeddingValues.join(',')}]`;\n\n// 4. Vérifier la longueur (768 pour votre modèle)\nconst expectedLength = 768;\nconst actualLength = embeddingValues.length;\n\n// 5. Préparer les données pour PostgreSQL\nreturn [{\n  json: {\n    // Données pour l'insertion\n    \n    embedding_pg: pgArrayString,\n    // Métadonnées pour debug\n    embedding_length: actualLength,                                       \n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        48
+      ],
+      "id": "83099b71-04e7-479c-baf4-a577e7b41baa",
+      "name": "formater l'embedding"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=AIzaSyDR4eZqqqqKpVf6Qgka4A-HZCoHhs4h-CE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": " Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.embedding_json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -560,
+        48
+      ],
+      "id": "e59a7b8e-d5ad-490b-b3d2-4e4be0ed5c19",
+      "name": "recuperer embeding"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "base_connaissance",
+          "mode": "list",
+          "cachedResultName": "base_connaissance"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "code_template": "={{ $json.code_template }}",
+            "description_probleme": "={{ $json.description_probleme }}",
+            "categorie": "={{ $json.categorie }}",
+            "embedding": "={{ $json.embedding_pg }}",
+            "template_reponse": "={{ $json.template_reponse }}",
+            "utilisation_count": 0
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "code_template",
+              "displayName": "code_template",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description_probleme",
+              "displayName": "description_probleme",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "categorie",
+              "displayName": "categorie",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "embedding",
+              "displayName": "embedding",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "template_reponse",
+              "displayName": "template_reponse",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "utilisation_count",
+              "displayName": "utilisation_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actif",
+              "displayName": "actif",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -160,
+        336
+      ],
+      "id": "768b01b8-4f0a-4378-b3e0-c19fce45b1ab",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "O5a7AmP6GxLRyg1i",
+          "name": "PGvector"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nœud JavaScript pour nettoyer et préparer pour embedding\n\nfunction cleanEmailMessage(message) {\n  if (!message) return '';\n  \n  // Trouver le début du vrai message (après l'en-tête technique)\n  const bonjourIndex = message.toLowerCase().indexOf('bonjour');\n  let cleaned = bonjourIndex > 0 ? message.substring(bonjourIndex) : message;\n  \n  // Nettoyer les caractères bizarres\n  cleaned = cleaned.replace(/â¯/g, ' ');\n  \n  return cleaned.trim();\n}\n\nfunction sanitizeForEmbedding(text) {\n  if (!text) return '';                                                                  \n  \n  \n  // 1. Échapper UNIQUEMENT les guillemets doubles pour JSON\n  let sanitized = text.replace(/\"/g, '\\\\\"');\n  \n  // 2. Remplacer tous les sauts de ligne par des espaces\n  sanitized = sanitized.replace(/[\\n\\r\\t]/g, ' ');\n  \n  // 3. Supprimer les caractères de contrôle (optionnel)\n  sanitized = sanitized.replace(/[\\x00-\\x1F\\x7F]/g, ' ');\n  \n  // 4. Supprimer les espaces multiples\n  sanitized = sanitized.replace(/\\s+/g, ' ');\n  \n  return sanitized.trim();\n}\n\n// Main - Traitement de chaque item\n  // Si l'input est un seul objet (comportement original)\n  const cleanMessage = cleanEmailMessage($input.first().json.description_probleme);                   \n  const forEmbedding = sanitizeForEmbedding(cleanMessage);\n  \n  const embeddingPayload = {\n    model: \"models/text-embedding-004\",\n    content: {\n      parts: [\n        {\n          text: forEmbedding\n        }\n      ]\n    }\n  };\n  \n  return [{\n    json: {\n     ...$input,                                 \n      embedding_json: JSON.stringify(embeddingPayload)\n    }\n  }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -832,
+        64
+      ],
+      "id": "f713fb31-3107-43c3-a00d-d8ae11d02962",
+      "name": "clean_message"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -432,
+        336
+      ],
+      "id": "e0874445-8a61-4848-8701-c45535fea3ee",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {
+    "When clicking ‘Execute workflow’": [
+      {
+        "json": {
+          "code_template": "LIVRAISON-NON-RECUE",
+          "categorie": "livraison",
+          "description_probleme": "Le client indique que sa commande est marquée comme livrée dans le système de suivi, mais qu'il ne l'a jamais reçue. Aucun appel du livreur, aucune visite constatée à l'adresse de livraison.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous sommes sincèrement désolés pour cette situation concernant votre commande {{numero_commande}}.\n\nAprès vérification, nous constatons que la commande est indiquée comme livrée. Nous avons immédiatement ouvert une enquête auprès de notre transporteur {{transporteur}} afin de localiser votre colis.\n\nNous reviendrons vers vous sous {{delai_estime}} avec une solution adaptée (re-livraison ou remboursement).\n\nMerci pour votre patience.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "LIVRAISON-RETARD",
+          "categorie": "livraison",
+          "description_probleme": "Le client se plaint d'un retard de livraison par rapport à la date estimée annoncée lors de la commande.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous vous remercions pour votre message concernant votre commande {{numero_commande}}.\n\nNous constatons effectivement un retard indépendant de notre volonté. Nos équipes sont en contact avec {{transporteur}} afin d'accélérer la livraison.\n\nLa nouvelle date estimée de réception est : {{delai_estime}}.\n\nNous restons à votre disposition.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "PRODUIT-ENDOMMAGE",
+          "categorie": "produit",
+          "description_probleme": "Le client a reçu un produit endommagé ou cassé lors de la livraison.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous sommes désolés d'apprendre que votre produit est arrivé endommagé.\n\nMerci de nous envoyer des photos du produit concerné ainsi que du colis afin que nous puissions procéder à un remplacement ou à un remboursement.\n\nVotre satisfaction reste notre priorité.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "PRODUIT-NON-CONFORME",
+          "categorie": "produit",
+          "description_probleme": "Le produit reçu ne correspond pas à la commande initiale (mauvais article, mauvaise taille, mauvaise couleur).",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous vous présentons nos excuses pour cette erreur concernant votre commande {{numero_commande}}.\n\nNous allons procéder à l'échange du produit dans les plus brefs délais. Vous recevrez prochainement les instructions de retour.\n\nMerci pour votre compréhension.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "REMBOURSEMENT-RETARD",
+          "categorie": "paiement",
+          "description_probleme": "Le client signale qu'il n'a toujours pas reçu son remboursement après un retour ou une annulation.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous avons bien reçu votre demande concernant le remboursement de la commande {{numero_commande}}.\n\nLe remboursement est actuellement en cours de traitement et sera visible sur votre compte sous {{delai_estime}}.\n\nMerci pour votre patience.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "PAIEMENT-REFUSE",
+          "categorie": "paiement",
+          "description_probleme": "Le client rencontre un refus ou une erreur lors du paiement en ligne.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous avons bien pris connaissance du problème rencontré lors de votre tentative de paiement.\n\nNous vous invitons à vérifier vos informations bancaires ou à essayer un autre moyen de paiement.\n\nSi le problème persiste, notre support est disponible via {{support_contact}}.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "COMPTE-BLOQUE",
+          "categorie": "compte",
+          "description_probleme": "Le client indique que son compte est bloqué ou inaccessible sans raison apparente.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nVotre compte a été temporairement bloqué pour des raisons de sécurité.\n\nNous procédons actuellement à la vérification et vous informerons dès que l'accès sera rétabli.\n\nMerci de votre compréhension.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "ERREUR-ADRESSE",
+          "categorie": "livraison",
+          "description_probleme": "La livraison a échoué à cause d'une adresse incorrecte ou incomplète fournie par le client.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nLa livraison de votre commande {{numero_commande}} n'a pas pu aboutir en raison d'une adresse incomplète.\n\nMerci de nous confirmer votre adresse complète afin de reprogrammer la livraison.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "ANNULATION-COMMANDE",
+          "categorie": "commande",
+          "description_probleme": "Le client souhaite annuler une commande déjà passée.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous avons bien pris en compte votre demande d'annulation pour la commande {{numero_commande}}.\n\nSi celle-ci n'a pas encore été expédiée, l'annulation sera effectuée immédiatement.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      },
+      {
+        "json": {
+          "code_template": "SERVICE-CLIENT-INJOIGNABLE",
+          "categorie": "support",
+          "description_probleme": "Le client indique ne pas avoir réussi à joindre le service client.",
+          "template_reponse": "Bonjour {{client_prenom}},\n\nNous sommes désolés pour la gêne occasionnée.\n\nNotre équipe support vous contactera dans les plus brefs délais. Vous pouvez également nous joindre via {{support_contact}}.\n\nMerci pour votre patience.\n\nCordialement,\nService Client",
+          "utilisation_count": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "clean_message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "formater l'embedding": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "recuperer embeding": {
+      "main": [
+        [
+          {
+            "node": "formater l'embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clean_message": {
+      "main": [
+        [
+          {
+            "node": "recuperer embeding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "d6de1eed-bee9-45bc-a201-95ce20af8dc3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "20563473f4fd52340e80a3ae21cc4e438a409f5ace2afd6265a08274bb480529"
+  },
+  "id": "La82VWJAURELHeah5yp1w",
+  "tags": []
+}

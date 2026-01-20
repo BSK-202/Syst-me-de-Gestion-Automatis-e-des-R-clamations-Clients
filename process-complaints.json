@@ -1,0 +1,807 @@
+{
+  "name": "fin",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const email = $input.first().json;\n\n// Fonction pour extraire nom et prénom du champ \"from\"\nfunction extractNameFromEmail(fromString) {\n    if (!fromString) return { nom: null, prenom: null };\n    \n    // Format: \"Ikrame Baskane <ikramebaskane8@gmail.com>\"\n    // OU: \"Marie Durand <marie.durand@email.com>\"\n    \n    // Extraire la partie avant <email>\n    const namePart = fromString.split('<')[0].trim();\n    \n    if (!namePart) return { nom: null, prenom: null };\n    \n    // Séparer par espace\n    const parts = namePart.split(' ');\n    \n    if (parts.length === 1) {\n        // Un seul mot → mettre dans nom\n        return { nom: parts[0], prenom: null };\n    } else if (parts.length === 2) {\n        // Deux mots → prénom nom\n        return { nom: parts[1], prenom: parts[0] };\n    } else {\n        // Plus de 2 mots → premier = prénom, dernier = nom\n        return { \n            nom: parts[parts.length - 1], \n            prenom: parts.slice(0, -1).join(' ') \n        };\n    }\n}\n\n// Extraire email\nfunction extractEmail(fromString) {\n    if (!fromString) return 'inconnu@email.com';\n    \n    // Chercher pattern <email>\n    const emailMatch = fromString.match(/<([^>]+)>/);\n    if (emailMatch && emailMatch[1]) {\n        return emailMatch[1].trim();\n    }\n    \n    // Si pas de <>, vérifier si c'est directement un email\n    if (fromString.includes('@')) {\n        return fromString.trim();\n    }\n    \n    return 'inconnu@email.com';\n}\n\n// Nettoyer le texte (enlever les caractères mal encodés)\nfunction cleanText(text) {\n    if (!text) return '';\n    \n    return text\n        .replace(/Ã©/g, 'é')\n        .replace(/Ã§/g, 'ç')\n        .replace(/â¬/g, '€')\n        .replace(/Ã¨/g, 'è')\n        .replace(/Ãª/g, 'ê')\n        .replace(/Ã«/g, 'ë')\n        .replace(/Ã®/g, 'î')\n        .replace(/Ã¯/g, 'ï')\n        .replace(/Ã´/g, 'ô')\n        .replace(/Ã¶/g, 'ö')\n        .replace(/Ã¹/g, 'ù')\n        .replace(/Ã»/g, 'û')\n        .replace(/Ã¼/g, 'ü')\n        .replace(/Ã¢/g, 'â')\n        .replace(/Ã¤/g, 'ä')\n        .replace(/Ã/g, 'à')\n        .replace(/Â°/g, '°')\n        .replace(/Â/g, '')\n        .trim();\n}\n\n// Extraire les informations\nconst emailFrom = email.from || '';\nconst { nom, prenom } = extractNameFromEmail(emailFrom);\nconst emailAddress = extractEmail(emailFrom);\n\n// Nettoyer le message\nconst message = cleanText(email.textPlain || email.textHtml || '');\n\n// Créer l'objet client\nconst clientData = {\n    email: emailAddress,\n    nom: nom,\n    prenom: prenom,\n    message: message,\n    sujet: email.subject || 'Sans objet',\n    date_reception: email.date || new Date().toISOString(),\n    \n    // Données supplémentaires pour debug\n};\n\nconsole.log('Données extraites:', clientData);\n\nreturn [{\n    json: clientData\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        192
+      ],
+      "id": "31b47eec-d6e6-4bd3-b641-8d2a04f60f36",
+      "name": "Extraire et Gérer Client"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nœud JavaScript pour nettoyer et préparer pour embedding\n\nfunction cleanEmailMessage(message) {\n  if (!message) return '';\n  \n  // Trouver le début du vrai message (après l'en-tête technique)\n  const bonjourIndex = message.toLowerCase().indexOf('bonjour');\n  let cleaned = bonjourIndex > 0 ? message.substring(bonjourIndex) : message;\n  \n  // Nettoyer les caractères bizarres\n  cleaned = cleaned.replace(/â¯/g, ' ');\n  \n  return cleaned.trim();\n}\n\nfunction sanitizeForEmbedding(text) {\n  if (!text) return '';\n  \n  // 1. Échapper UNIQUEMENT les guillemets doubles pour JSON\n  let sanitized = text.replace(/\"/g, '\\\\\"');\n  \n  // 2. Remplacer tous les sauts de ligne par des espaces\n  sanitized = sanitized.replace(/[\\n\\r\\t]/g, ' ');\n  \n  // 3. Supprimer les caractères de contrôle (optionnel)\n  sanitized = sanitized.replace(/[\\x00-\\x1F\\x7F]/g, ' ');\n  \n  // 4. Supprimer les espaces multiples\n  sanitized = sanitized.replace(/\\s+/g, ' ');\n  \n  return sanitized.trim();\n}\n\n// Main\nconst inputData = $input.first().json;\n\n// Nettoyer le message\nconst cleanMessage = cleanEmailMessage(inputData.message);\n\n// Nettoyer pour embedding\nconst forEmbedding = sanitizeForEmbedding(cleanMessage);\n\n// Créer le payload JSON complet pour l'API\nconst embeddingPayload = {\n  model: \"models/text-embedding-004\",\n  content: {\n    parts: [\n      {\n        text: forEmbedding\n      }\n    ]\n  }\n};\n\n// Retourner le résultat\nreturn [{\n  json: {\n    ...inputData,\n    page_content: forEmbedding,\n    // Payload déjà formaté en JSON string\n    embedding_json: JSON.stringify(embeddingPayload),\n    // Pour debug\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -16
+      ],
+      "id": "588bffe4-b40a-4d55-a906-17be94dadf3d",
+      "name": "clean_message"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1232,
+        176
+      ],
+      "id": "d7179da3-21dc-4586-af43-3d1ab45f1603",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        832,
+        624
+      ],
+      "id": "3db26689-10ab-4c80-ab92-7246eca8d751",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nœud JavaScript - Formater embedding pour PostgreSQL\n\nconst input = $input.first().json;\n\n// 1. Récupérer l'embedding\nconst embeddingValues = input.embedding?.values || [];\n\n// 2. Vérifier que c'est un array\nif (!Array.isArray(embeddingValues)) {\n  throw new Error(\"L'embedding n'est pas un array !\");\n}\n\n// 3. Convertir en format PostgreSQL ARRAY string\n// Format: {0.011800998,0.004005518,0.04419434,...}\nconst pgArrayString = `[${embeddingValues.join(',')}]`;\n\n// 4. Vérifier la longueur (768 pour votre modèle)\nconst expectedLength = 768;\nconst actualLength = embeddingValues.length;\n\n// 5. Préparer les données pour PostgreSQL\nreturn [{\n  json: {\n    // Données pour l'insertion\n    \n    // ⭐ EMBEDDING FORMATÉ POUR POSTGRESQL ⭐\n    embedding_pg: pgArrayString,\n    \n    // Valeurs par défaut\n    categorie: \"non_categorise\",\n    urgence: \"medium\",\n    statut: \"nouvelle\",\n    \n    // Métadonnées pour debug\n    embedding_length: actualLength,\n    is_correct_length: actualLength === expectedLength,\n    first_3_values: embeddingValues.slice(0, 3),\n    pg_format_sample: pgArrayString.substring(0, 50) + \"...\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        -32
+      ],
+      "id": "f45a3de1-fc50-4e03-87df-584dd09ea727",
+      "name": "formater l'embedding"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=AIzaSyDeu0F6Ag_QdR7qnUj90OygZVCypBQf-RI",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": " Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.embedding_json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        704,
+        -32
+      ],
+      "id": "f192a14d-3da9-4f4b-afe4-8b083f2f4675",
+      "name": "recuperer embeding"
+    },
+    {
+      "parameters": {
+        "chatId": "7437503449",
+        "text": "=🚨 *Nouveau ticket client*                                          \nid:     {{ $json.name }} \nType :  {{ $json.property_cat_gorie }} \n                                        \n🔗 [Voir le ticket] {{ $json.url }} \n\nMerci de le traiter dans les plus brefs délais !\n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        944
+      ],
+      "id": "d491fc54-8807-4a81-b3bb-69860c93318a",
+      "name": "Alerte manager",
+      "webhookId": "dea65dd1-0af2-42e5-881c-6c1c91b4f539",
+      "credentials": {
+        "telegramApi": {
+          "id": "ofMa5E9cOK2SSe1j",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Tu es un assistant de service client expert.                    \n## CONTEXTE\nJe reçois une réclamation client et j'ai un template de réponse générique. Je dois personnaliser cet email en utilisant les informations du client et du problème spécifique.\n\n## DONNÉES DISPONIBLES\n### 1. Template de réponse générique :\n\"Nous vérifions immédiatement avec notre transporteur...\"\n\n### 2. Informations du client :\n- **Nom** : {{$json.prenom}} {{$json.nom}} \n- **Email** : {{$json.email}}\n\n### 3. Détails du problème :\n{{ $json.message }}\n\n## INSTRUCTIONS\n1. **Personnalise** le template de réponse avec les informations spécifiques du client en utilisant les placeholders \n2. **Inclus** tous les détails pertinents (numéro de commande, articles, etc.)\n3. **Réponds** directement aux demandes du client\n4. **Sois empathique** et rassurant\n5. **Donne une échéance** réaliste pour le suivi\n6. **Propose** des solutions concrètes\n7. **Format** : Email professionnel en français\n8. **Laisse les placeholders** tels quels pour que n8n puisse les remplacer automatiquement\n\n## FORMAT D'EMAIL ATTENDU :\n**Objet**: Réponse  au  {{ $json.sujet }}\n\nCher(e) {{$json.prenom}},\n\n[Corps de l'email personnalisé avec placeholders]\n\nCordialement,\nL'équipe du Service Client\n\nnoter bien il faut genere la reponse sous format html"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1568,
+        688
+      ],
+      "id": "add8ed22-ed91-4cea-ae59-cb5752bfb349",
+      "name": "Généré un email personnalisé ",
+      "retryOnFail": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4wk1loymp5ZCeKlA",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1744,
+        896
+      ],
+      "id": "38047791-3026-4a09-8544-751d6072b2d7",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "2e6e4a6f-1674-8085-a0cb-e608d73da50f",
+          "mode": "list",
+          "cachedResultName": "Tickets Réclamations",
+          "cachedResultUrl": "https://www.notion.so/2e6e4a6f16748085a0cbe608d73da50f"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "client|rich_text",
+              "textContent": "={{ $json.nom }}  {{ $json.prenom }}"
+            },
+            {
+              "key": "Date création|date",
+              "date": "={{ $json.date_reception }}"
+            },
+            {
+              "key": "Date limite|date",
+              "date": "={{ new Date(new Date($json.date_reception).getTime() + (($json.urgence ? 2 : 7) * 24 * 60 * 60 * 1000)).toISOString() }}"
+            },
+            {
+              "key": "Statut|select",
+              "selectValue": "={{ $json.statut }}"
+            },
+            {
+              "key": "Ticket ID|title",
+              "title": "=Rec-00{{ $json.id }}"
+            },
+            {
+              "key": "Date création|date",
+              "date": "={{ $json.date_reception }}"
+            },
+            {
+              "key": "Catégorie|rich_text",
+              "textContent": "={{ $json.content.parts[0].text }}"
+            },
+            {
+              "key": "Email client|email",
+              "emailValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1264,
+        944
+      ],
+      "id": "a751766e-dc53-479b-bfe5-8fca8a22f054",
+      "name": "create ticket",
+      "credentials": {
+        "notionApi": {
+          "id": "LlZiTrlE9KgmlzlM",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b1996f3b-fd55-4645-9919-b84ee9fe5da5",
+              "leftValue": "={{ $json.mode_traitement }}",
+              "rightValue": "AUTOMATIQUE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1312,
+        704
+      ],
+      "id": "bdbd5d64-712c-430e-8d6f-2bb4084f3bab",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1136,
+        704
+      ],
+      "id": "d262726e-8448-4973-a117-d36aa2db4b4a",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Tu es un classificateur de réclamations clients. Analyse la réclamation et retourne uniquement le nom de la catégorie correspondante.\n\nRègles ABSOLUES :\n- Réponse = uniquement le nom de la catégorie\n- Format : MAJUSCULES avec tirets\n- Pas de JSON, pas de guillemets, pas de structure\n- Pas d'explications, pas de ponctuation supplémentaire\n\nRéclamation : {{$json.message}}\n\nCatégories possibles :\nLIVRAISON-NON-RECUE\nLIVRAISON-RETARD\nPRODUIT-ENDOMMAGE\nPRODUIT-NON-CONFORME\nREMBOURSEMENT-RETARD\nPAIEMENT-REFUSE\nCOMPTE-BLOQUE\nERREUR-ADRESSE\nANNULATION-COMMANDE\nSERVICE-CLIENT-INJOIGNABLE"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        416,
+        416
+      ],
+      "id": "3a8fd3ee-0780-4051-bc8b-78cce783cef9",
+      "name": "Message a model",
+      "retryOnFail": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4wk1loymp5ZCeKlA",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        864,
+        208
+      ],
+      "id": "2101b453-bcdd-431e-b7f3-4f1b23ecaa2c",
+      "name": "Merge4"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO clients (email, nom, prenom) \nVALUES ($1, $2, $3)\nON CONFLICT (email) DO UPDATE SET\n  nom = EXCLUDED.nom,\n  prenom = EXCLUDED.prenom\nRETURNING id, email;",
+        "options": {
+          "queryReplacement": "={{ $json.email }},{{ $json.nom }},{{ $json.prenom }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        368,
+        640
+      ],
+      "id": "ddb14ea8-e8d6-42bc-8340-6ce335d1c55e",
+      "name": "Insert Client",
+      "credentials": {
+        "postgres": {
+          "id": "O5a7AmP6GxLRyg1i",
+          "name": "PGvector"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "reclamations",
+          "mode": "list",
+          "cachedResultName": "reclamations"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_id": "={{ $json.id }}",
+            "solution_id": 0,
+            "score_similarite": 0,
+            "message": "={{ $json.message }}",
+            "sujet": "={{ $json.sujet }}",
+            "embedding": "={{ $json.embedding_pg }}",
+            "categorie": "={{ $json.content.parts[0].text }}",
+            "statut": "={{ $json.statut }}",
+            "created_at": "={{ $json.date_reception }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "client_id",
+              "displayName": "client_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sujet",
+              "displayName": "sujet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "embedding",
+              "displayName": "embedding",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "categorie",
+              "displayName": "categorie",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "urgence",
+              "displayName": "urgence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "solution_id",
+              "displayName": "solution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score_similarite",
+              "displayName": "score_similarite",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1056,
+        480
+      ],
+      "id": "a54f3025-d17a-4e13-9acf-3db466aefa6c",
+      "name": "InsertReclamation",
+      "credentials": {
+        "postgres": {
+          "id": "O5a7AmP6GxLRyg1i",
+          "name": "PGvector"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Trouver la réponse la plus similaire avec décision de traitement                    \n  \nSELECT \n    bc.id,\n    bc.code_template,\n    bc.description_probleme,\n    bc.categorie,\n    bc.template_reponse,\n    bc.utilisation_count,\n    -- Score de similarité (1 - distance cosinus)\n    1 - (r.embedding <=> bc.embedding) as score_similarite,\n    -- Arrondir à 2 décimales pour lisibilité\n    ROUND((1 - (r.embedding <=> bc.embedding))::numeric, 2) as score_arrondi,\n    -- Logique de décision automatique/manuelle\n    CASE \n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.85 THEN 'AUTOMATIQUE'\n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.65 THEN 'SEMI_AUTOMATIQUE'\n        ELSE 'MANUEL'\n    END as mode_traitement,\n    -- Niveau de confiance\n    CASE \n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.90 THEN 'CONFIANCE_TRES_ELEVEE (≥90%)'\n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.85 THEN 'CONFIANCE_ELEVEE (85-89%)'\n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.75 THEN 'CONFIANCE_MOYENNE (75-84%)'\n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.65 THEN 'CONFIANCE_FAIBLE (65-74%)'\n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.50 THEN 'CONFIANCE_TRES_FAIBLE (50-64%)'\n        ELSE 'INSUFFISANT (<50%)'\n    END as niveau_confiance,\n    -- Recommandation d'action\n    CASE \n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.85 \n            THEN 'Envoyer automatiquement la réponse'\n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.65 \n            THEN 'Proposer la réponse à l''agent pour validation'\n        ELSE 'Traiter manuellement - Aucune correspondance fiable'\n    END as recommandation_action,\n    -- Mettre à jour le compteur d'utilisation si automatique\n    CASE \n        WHEN 1 - (r.embedding <=> bc.embedding) >= 0.85 \n            THEN bc.utilisation_count + 1\n        ELSE bc.utilisation_count\n    END as nouveau_compteur_utilisation\nFROM \n    reclamations r,\n    base_connaissance bc\nWHERE \n    r.id = {{ $json.id }}   -- ID de la réclamation\nORDER BY \n    (r.embedding <=> bc.embedding) ASC  -- Tri par distance la plus petite\nLIMIT 1;  -- Une seule réponse",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1248,
+        480
+      ],
+      "id": "f759e437-d768-489f-b9fa-0e78880e2838",
+      "name": "CalculeSimilarite",
+      "credentials": {
+        "postgres": {
+          "id": "O5a7AmP6GxLRyg1i",
+          "name": "PGvector"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        192
+      ],
+      "id": "0b0ed7cc-1b78-4030-aed3-d52a90679dbc",
+      "name": "Email Trigger (IMAP)",
+      "retryOnFail": true,
+      "credentials": {
+        "imap": {
+          "id": "TKl6IEuger9jYrih",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "baskaneikrame1@gmail.com",
+        "toEmail": "={{ $json.email }}                    ",
+        "subject": "={{ $json.sujet }}",
+        "html": "={{ $json.content.parts[0].text }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1936,
+        896
+      ],
+      "id": "dee6a1fb-99be-48fe-a203-86bf0b79f83f",
+      "name": "Send email",
+      "webhookId": "8dbf1c93-15af-4d81-9392-eef8fd722580",
+      "retryOnFail": true,
+      "credentials": {
+        "smtp": {
+          "id": "Vw4xXFpL1wRtriNn",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extraire et Gérer Client": {
+      "main": [
+        [
+          {
+            "node": "clean_message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Client",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clean_message": {
+      "main": [
+        [
+          {
+            "node": "recuperer embeding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "InsertReclamation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "formater l'embedding": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "recuperer embeding": {
+      "main": [
+        [
+          {
+            "node": "formater l'embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Généré un email personnalisé ": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Généré un email personnalisé ",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "create ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge4": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "create ticket": {
+      "main": [
+        [
+          {
+            "node": "Alerte manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Client": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "InsertReclamation": {
+      "main": [
+        [
+          {
+            "node": "CalculeSimilarite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CalculeSimilarite": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Extraire et Gérer Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "444fe2de-987f-419e-ae09-a02be9416ef4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "20563473f4fd52340e80a3ae21cc4e438a409f5ace2afd6265a08274bb480529"
+  },
+  "id": "O_g8KN3ymftbeRd483GSj",
+  "tags": []
+}
